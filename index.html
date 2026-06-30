@@ -984,13 +984,20 @@ function actualizarOpcionesCalibre(parentPart){
     desc.style.whiteSpace = 'normal';
     desc.textContent = o.desc;
 
-    // Fila cantidad ya cortada en el turno (local)
+    // Obtener el job actualmente seleccionado
+    const jobActivo = document.getElementById('job').value.split('|')[0].trim();
+
+    // Cantidad cortada de este RM en este turno (filtrada por job si hay uno seleccionado)
     const yaTurno = registros
-      .filter(r => r.calibre === o.code)
+      .filter(r => r.calibre === o.code && (!jobActivo || r.job === jobActivo))
       .reduce((s, r) => s + r.cantidad, 0);
 
-    // Fila cantidad histórica del Excel (todos los turnos/operadores)
-    const yaHistorial = getCortadoHistorialPorRM(o.code);
+    // Cantidad histórica del Excel filtrada por job+RM
+    const yaHistorial = (historialCargado && jobActivo)
+      ? historialExcel
+          .filter(r => String(r.calibre||'').trim() === o.code && String(r.job||'').trim() === jobActivo)
+          .reduce((s, r) => s + r.cantidad, 0)
+      : (historialCargado && !jobActivo ? getCortadoHistorialPorRM(o.code) : null);
 
     const yaRow = document.createElement('span');
     yaRow.style.fontFamily = 'var(--font-body)';
@@ -1004,7 +1011,7 @@ function actualizarOpcionesCalibre(parentPart){
     let textoHistorial = '';
     if(yaHistorial !== null){
       const totalGlobal = yaHistorial + yaTurno;
-      textoHistorial = `  ·  Total histórico: ${totalGlobal.toLocaleString('es-MX')} pzas`;
+      textoHistorial = `  ·  Total: ${totalGlobal.toLocaleString('es-MX')} pzas`;
       yaRow.style.color = totalGlobal > 0 ? 'var(--green)' : 'var(--text-dim)';
     } else {
       yaRow.style.color = yaTurno > 0 ? 'var(--green)' : 'var(--text-dim)';
