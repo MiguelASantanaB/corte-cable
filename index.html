@@ -362,7 +362,7 @@
   /* ===== STATS STRIP ===== */
   .stats{
     display:grid;
-    grid-template-columns:repeat(4,1fr);
+    grid-template-columns:repeat(3,1fr);
     gap:14px;
     margin-bottom:18px;
   }
@@ -557,9 +557,8 @@
 </div>
 
 <div class="stats">
-  <div class="stat"><div class="num" id="statRegistros">0</div><div class="lbl">Registros del turno</div></div>
-  <div class="stat"><div class="num" id="statPiezas">0</div><div class="lbl">Piezas cortadas</div></div>
-  <div class="stat"><div class="num" id="statMetros">0</div><div class="lbl">Metros totales</div></div>
+  <div class="stat"><div class="num" id="statRegistros">0</div><div class="lbl">Mis registros</div></div>
+  <div class="stat"><div class="num" id="statPiezas">0</div><div class="lbl">Mis piezas cortadas</div></div>
   <div class="stat"><div class="num" id="statMaquinas">0</div><div class="lbl">Máquinas activas</div></div>
 </div>
 
@@ -1343,12 +1342,16 @@ function getJobQtyInfo(jobCode, rmCode){
   const entry = openJobs.find(j=>j.job === jobCode);
   if(!entry) return null;
 
-  // Conteo local (turno actual) filtrado por Job+RM
+  // Si hay RM seleccionado, multiplicar Req Qty por los circuitos de ese RM
+  const circuitos = (rmCode && rmCircuitosMap[rmCode]) ? rmCircuitosMap[rmCode] : 1;
+  const maxQty = rmCode ? entry.qty * circuitos : entry.qty;
+
+  // Conteo local (turno actual)
   const localUsado = rmCode
     ? registros.filter(r=>r.job === jobCode && r.calibre === rmCode).reduce((s,r)=>s+r.cantidad,0)
     : registros.filter(r=>r.job === jobCode).reduce((s,r)=>s+r.cantidad,0);
 
-  // Conteo histórico del Excel (otros turnos/operadores) filtrado por Job+RM
+  // Conteo histórico del Excel (otros turnos/operadores)
   const histUsado = historialCargado
     ? (rmCode
         ? historialExcel.filter(r=>String(r.job||'').trim()===jobCode && String(r.calibre||'').trim()===rmCode).reduce((s,r)=>s+r.cantidad,0)
@@ -1356,7 +1359,7 @@ function getJobQtyInfo(jobCode, rmCode){
     : 0;
 
   const usado = localUsado + histUsado;
-  return {max: entry.qty, usado, restante: Math.max(0, entry.qty - usado)};
+  return {max: maxQty, usado, restante: Math.max(0, maxQty - usado), circuitos};
 }
 
 function actualizarJobQtyHint(){
@@ -1372,8 +1375,9 @@ function actualizarJobQtyHint(){
   }
   const excede = cantidadInput && Number(cantidadInput) > info.restante;
   const rmLabel = rm ? ` · RM ${rm}` : '';
+  const circLabel = (info.circuitos && info.circuitos > 1) ? ` × ${info.circuitos} ctos` : '';
   const histLabel = historialCargado ? ` (${info.usado.toLocaleString('es-MX')} cortadas en total)` : '';
-  hint.textContent = `Job ${job}${rmLabel}: restante ${info.restante.toLocaleString('es-MX')} de ${info.max.toLocaleString('es-MX')} pzas${histLabel}`;
+  hint.textContent = `Job ${job}${rmLabel}${circLabel}: restante ${info.restante.toLocaleString('es-MX')} de ${info.max.toLocaleString('es-MX')} pzas${histLabel}`;
   hint.classList.remove('warn');
 }
 document.getElementById('cantidad').addEventListener('input', actualizarJobQtyHint);
@@ -1398,10 +1402,9 @@ function verificarJobCompletado(jobCode){
   const entrada = openJobs.find(j => j.job === jobCode);
   if(!entrada) return;
 
-  const maxQty = entrada.qty;
+  const reqQty = entrada.qty;
   const part = entrada.part;
 
-  // Obtener todos los RMs cortables de esta parte
   const opciones = materialesPorParte[part];
   if(!opciones || opciones.length === 0) return;
 
@@ -1410,25 +1413,26 @@ function verificarJobCompletado(jobCode){
 
   for(const o of opciones){
     const rmCode = o.code;
+    // Total requerido = Req Qty × circuitos del RM
+    const circuitos = (rmCircuitosMap[rmCode]) ? rmCircuitosMap[rmCode] : 1;
+    const maxParaRM = reqQty * circuitos;
 
-    // Cantidad cortada de este RM para este Job (turno actual)
     const localCut = registros
       .filter(r => r.calibre === rmCode && r.job === jobCode)
       .reduce((s, r) => s + r.cantidad, 0);
 
-    // Cantidad cortada de este RM para este Job (historial Excel)
     const histCut = historialCargado
       ? historialExcel
-          .filter(r => String(r.calibre).trim() === rmCode && String(r.job).trim() === jobCode)
+          .filter(r => String(r.calibre||'').trim() === rmCode && String(r.job||'').trim() === jobCode)
           .reduce((s, r) => s + r.cantidad, 0)
       : 0;
 
     const totalCut = localCut + histCut;
 
-    if(totalCut >= maxQty){
+    if(totalCut >= maxParaRM){
       rmsCompletos.push({code: rmCode, total: totalCut});
     } else {
-      rmsPendientes.push({code: rmCode, total: totalCut, pendiente: maxQty - totalCut});
+      rmsPendientes.push({code: rmCode, total: totalCut, pendiente: maxParaRM - totalCut});
     }
   }
 
@@ -1546,12 +1550,14 @@ function renderTabla(){
 }
 
 function actualizarStats(){
-  document.getElementById('statRegistros').textContent = registros.length;
-  const piezas = registros.reduce((s,r)=>s+r.cantidad,0);
-  document.getElementById('statPiezas').textContent = piezas;
-  const metros = registros.reduce((s,r)=>s+(r.longitud*r.cantidad)/1000,0);
-  document.getElementById('statMetros').textContent = metros.toFixed(1);
-  const maquinas = new Set(registros.map(r=>r.maquina)).size;
+  const operadorActivo = document.getElementById('operador').value.trim();
+  const misRegistros = operadorActivo
+    ? registros.filter(r => r.operador === operadorActivo)
+    : registros;
+  document.getElementById('statRegistros').textContent = misRegistros.length;
+  const piezas = misRegistros.reduce((s,r)=>s+r.cantidad,0);
+  document.getElementById('statPiezas').textContent = piezas.toLocaleString('es-MX');
+  const maquinas = new Set(misRegistros.map(r=>r.maquina)).size;
   document.getElementById('statMaquinas').textContent = maquinas;
 }
 
