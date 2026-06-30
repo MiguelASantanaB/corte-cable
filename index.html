@@ -1113,9 +1113,10 @@ async function iniciarLoginDesdeOverlay(){
 }
 
 function gsyncSetStatus(connected, label){
+  const dot = document.getElementById('gsyncDot');
   const lbl = document.getElementById('gsyncLabel');
-  dot.classList.toggle('connected', connected);
-  lbl.textContent = label;
+  if(dot) dot.classList.toggle('connected', connected);
+  if(lbl) lbl.textContent = label;
 }
 
 function initMsAuth(){
