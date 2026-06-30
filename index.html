@@ -1155,9 +1155,33 @@ function initMsAuth(){
     auth: {
       clientId: MS_CONFIG.CLIENT_ID,
       authority: 'https://login.microsoftonline.com/' + MS_CONFIG.TENANT_ID,
-      redirectUri: window.location.href.split('#')[0]
+      redirectUri: window.location.origin + window.location.pathname
     },
     cache: { cacheLocation: 'sessionStorage' }
+  });
+
+  // Manejar el retorno después del redirect de Microsoft
+  msalInstance.handleRedirectPromise().then(result => {
+    if(result && result.account){
+      msAccount = result.account;
+      gsyncSetStatus(true, 'Conectado: ' + msAccount.username);
+      showToast('✓ Conectado a Excel / OneDrive');
+      document.getElementById('btnRefreshHistorial').style.display = '';
+      actualizarEstadoLogin();
+      cargarHistorialExcel();
+    } else {
+      // Revisar si ya hay cuentas en caché (sesión anterior)
+      const accounts = msalInstance.getAllAccounts();
+      if(accounts.length > 0){
+        msAccount = accounts[0];
+        gsyncSetStatus(true, 'Conectado: ' + msAccount.username);
+        document.getElementById('btnRefreshHistorial').style.display = '';
+        actualizarEstadoLogin();
+        cargarHistorialExcel();
+      }
+    }
+  }).catch(err => {
+    console.error('Error en redirect:', err);
   });
 }
 
@@ -1176,12 +1200,16 @@ async function getMsAccessToken(interactive){
       return result.accessToken;
     }
   } catch(err){
-    // sigue al flujo interactivo si falla silencioso
+    // Token expirado — forzar redirect
+    if(interactive && msAccount){
+      msalInstance.acquireTokenRedirect({ scopes: MS_CONFIG.SCOPES, account: msAccount });
+      return null;
+    }
   }
   if(!interactive) return null;
-  const result = await msalInstance.loginPopup({ scopes: MS_CONFIG.SCOPES });
-  msAccount = result.account;
-  return result.accessToken;
+  // Iniciar login con redirect (no popup)
+  msalInstance.loginRedirect({ scopes: MS_CONFIG.SCOPES });
+  return null; // La página se redirige, no llega aquí
 }
 
 document.getElementById('btnMsAuth').addEventListener('click', async ()=>{
