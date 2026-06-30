@@ -1025,6 +1025,7 @@ function actualizarOpcionesCalibre(parentPart){
       div.classList.add('active');
       closeDropdown(wrap);
       markInvalid('calibre', false);
+      actualizarJobQtyHint();
     });
     list.appendChild(div);
   });
@@ -1337,26 +1338,33 @@ function markInvalid(id, invalid){
   document.getElementById('f-'+id).classList.toggle('invalid', invalid);
 }
 
-function getJobQtyInfo(jobCode){
+function getJobQtyInfo(jobCode, rmCode){
   if(!jobCode) return null;
   const entry = openJobs.find(j=>j.job === jobCode);
   if(!entry) return null;
-  const usado = registros.filter(r=>r.job === jobCode).reduce((s,r)=>s+r.cantidad,0);
+  // Si se pasa un RM específico, calcular solo los cortes de ese RM para ese Job
+  // Si no, calcular el total del Job (para el hint general)
+  const usado = rmCode
+    ? registros.filter(r=>r.job === jobCode && r.calibre === rmCode).reduce((s,r)=>s+r.cantidad,0)
+    : registros.filter(r=>r.job === jobCode).reduce((s,r)=>s+r.cantidad,0);
   return {max: entry.qty, usado, restante: entry.qty - usado};
 }
 
 function actualizarJobQtyHint(){
   const hint = document.getElementById('jobQtyHint');
   const job = document.getElementById('job').value.split('|')[0].trim();
+  const rm = document.getElementById('calibre').value;
   const cantidadInput = document.getElementById('cantidad').value;
-  const info = getJobQtyInfo(job);
+  // Si hay RM seleccionado, mostrar el restante específico para ese RM+Job
+  const info = getJobQtyInfo(job, rm || null);
   if(!info){
     hint.textContent = '';
     hint.classList.remove('warn');
     return;
   }
   const excede = cantidadInput && Number(cantidadInput) > info.restante;
-  hint.textContent = `Job ${job}: restante ${info.restante.toLocaleString('es-MX')} de ${info.max.toLocaleString('es-MX')} pzas`;
+  const rmLabel = rm ? ` · RM ${rm}` : '';
+  hint.textContent = `Job ${job}${rmLabel}: restante ${info.restante.toLocaleString('es-MX')} de ${info.max.toLocaleString('es-MX')} pzas`;
   hint.classList.toggle('warn', excede);
 }
 document.getElementById('cantidad').addEventListener('input', actualizarJobQtyHint);
@@ -1443,11 +1451,12 @@ function validar(){
   markInvalid('cantidad', !cantidad || Number(cantidad)<=0); if(!cantidad || Number(cantidad)<=0) ok=false;
 
   if(ok && job){
-    const info = getJobQtyInfo(job);
+    const info = getJobQtyInfo(job, calibre || null);
     if(info && Number(cantidad) > info.restante){
       markInvalid('cantidad', true);
       ok = false;
-      ultimoErrorValidacion = `⚠ La cantidad excede lo disponible para el Job ${job}. Restante: ${info.restante.toLocaleString('es-MX')} pzas de ${info.max.toLocaleString('es-MX')} pzas totales`;
+      const rmLabel = calibre ? ` / RM ${calibre}` : '';
+      ultimoErrorValidacion = `⚠ La cantidad excede lo disponible para Job ${job}${rmLabel}. Restante: ${info.restante.toLocaleString('es-MX')} pzas de ${info.max.toLocaleString('es-MX')} pzas totales`;
     }
   }
 
