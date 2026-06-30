@@ -1374,7 +1374,7 @@ function actualizarJobQtyHint(){
   const rmLabel = rm ? ` · RM ${rm}` : '';
   const histLabel = historialCargado ? ` (${info.usado.toLocaleString('es-MX')} cortadas en total)` : '';
   hint.textContent = `Job ${job}${rmLabel}: restante ${info.restante.toLocaleString('es-MX')} de ${info.max.toLocaleString('es-MX')} pzas${histLabel}`;
-  hint.classList.toggle('warn', excede || info.restante === 0);
+  hint.classList.remove('warn');
 }
 document.getElementById('cantidad').addEventListener('input', actualizarJobQtyHint);
 
@@ -1459,15 +1459,6 @@ function validar(){
   markInvalid('longitud', !longitud || Number(longitud)<=0); if(!longitud || Number(longitud)<=0) ok=false;
   markInvalid('cantidad', !cantidad || Number(cantidad)<=0); if(!cantidad || Number(cantidad)<=0) ok=false;
 
-  if(ok && job){
-    const info = getJobQtyInfo(job, calibre || null);
-    if(info && Number(cantidad) > info.restante){
-      markInvalid('cantidad', true);
-      ok = false;
-      const rmLabel = calibre ? ` / RM ${calibre}` : '';
-      ultimoErrorValidacion = `⚠ La cantidad excede lo disponible para Job ${job}${rmLabel}. Restante: ${info.restante.toLocaleString('es-MX')} pzas de ${info.max.toLocaleString('es-MX')} pzas totales`;
-    }
-  }
 
   return ok ? {operador, job, maquina, parte, calibre, longitud:Number(longitud), cantidad:Number(cantidad)} : null;
 }
