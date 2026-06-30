@@ -1098,18 +1098,16 @@ async function iniciarLoginDesdeOverlay(){
     showToast('⚠ Configura primero el Client ID de Microsoft en el código');
     return;
   }
-  try{
-    const token = await getMsAccessToken(true);
-    if(token){
-      gsyncSetStatus(true, 'Conectado: ' + (msAccount?.username || ''));
-      showToast('✓ Conectado a Excel / OneDrive');
-      document.getElementById('btnRefreshHistorial').style.display = '';
-      actualizarEstadoLogin();
-      cargarHistorialExcel();
-    }
-  } catch(err){
-    showToast('⚠ No se pudo conectar con Microsoft');
+  const accounts = msalInstance.getAllAccounts();
+  if(accounts.length > 0){
+    msAccount = accounts[0];
+    gsyncSetStatus(true, 'Conectado: ' + msAccount.username);
+    document.getElementById('btnRefreshHistorial').style.display = '';
+    actualizarEstadoLogin();
+    cargarHistorialExcel();
+    return;
   }
+  msalInstance.loginRedirect({ scopes: MS_CONFIG.SCOPES });
 }
 
 function gsyncSetStatus(connected, label){
@@ -1190,23 +1188,24 @@ async function getMsAccessToken(interactive){
   return null; // La página se redirige, no llega aquí
 }
 
-document.getElementById('btnMsAuth').addEventListener('click', async ()=>{
+document.getElementById('btnMsAuth').addEventListener('click', ()=>{
   if(!msalInstance){
     showToast('⚠ Configura primero el Client ID de Microsoft en el código');
     return;
   }
-  try{
-    const token = await getMsAccessToken(true);
-    if(token){
-      gsyncSetStatus(true, 'Conectado: ' + (msAccount?.username || ''));
-      showToast('✓ Conectado a Excel / OneDrive');
-      document.getElementById('btnRefreshHistorial').style.display = '';
-      actualizarEstadoLogin();
-      cargarHistorialExcel();
-    }
-  } catch(err){
-    showToast('⚠ No se pudo conectar con Microsoft');
+  // Verificar si ya hay sesión activa (silencioso)
+  const accounts = msalInstance.getAllAccounts();
+  if(accounts.length > 0){
+    msAccount = accounts[0];
+    gsyncSetStatus(true, 'Conectado: ' + msAccount.username);
+    document.getElementById('btnRefreshHistorial').style.display = '';
+    actualizarEstadoLogin();
+    cargarHistorialExcel();
+    showToast('✓ Sesión restaurada');
+    return;
   }
+  // Sin sesión → redirigir a Microsoft (la página se va y regresa sola)
+  msalInstance.loginRedirect({ scopes: MS_CONFIG.SCOPES });
 });
 
 document.getElementById('btnRefreshHistorial').addEventListener('click', async ()=>{
