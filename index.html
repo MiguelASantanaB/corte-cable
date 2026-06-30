@@ -565,28 +565,28 @@
 
 <div class="grid">
   <div class="card" style="position:relative;">
-    <!-- Overlay de bloqueo cuando no hay sesión Microsoft -->
+    <!-- Aviso de sesión requerida (no bloquea, solo informa) -->
     <div id="loginBlockOverlay" style="
-      position:absolute; inset:0; z-index:10;
-      background:rgba(22,24,27,0.88);
-      backdrop-filter:blur(4px);
-      border-radius:14px;
-      display:flex; flex-direction:column;
-      align-items:center; justify-content:center;
-      gap:16px; text-align:center; padding:32px;
+      display:none;
+      background:rgba(200,16,46,0.08);
+      border:2px solid var(--amber);
+      border-radius:10px;
+      padding:14px 18px;
+      margin-bottom:16px;
+      display:flex;
+      align-items:center;
+      gap:14px;
+      flex-wrap:wrap;
     ">
-      <div style="font-size:52px;">🔒</div>
-      <div style="font-family:var(--font-display);font-size:26px;letter-spacing:1px;color:var(--amber);text-transform:uppercase;">
-        Inicia sesión para capturar
-      </div>
-      <div style="color:var(--text-dim);font-size:14px;max-width:320px;line-height:1.6;">
-        Debes conectarte con tu cuenta de Microsoft 365 antes de poder registrar cortes.
-      </div>
+      <span style="font-size:24px;">🔒</span>
+      <span style="color:var(--text);font-size:14px;flex:1;">
+        Debes conectarte con Microsoft 365 antes de registrar cortes.
+      </span>
       <button onclick="iniciarLoginDesdeOverlay()" style="
-        font-family:var(--font-display);font-size:20px;letter-spacing:1px;text-transform:uppercase;
+        font-family:var(--font-display);font-size:16px;letter-spacing:1px;text-transform:uppercase;
         background:linear-gradient(180deg,#ffc85c,var(--amber));color:#1a1206;
-        border:none;border-radius:10px;padding:16px 32px;cursor:pointer;
-        box-shadow:0 6px 0 var(--amber-dim);margin-top:8px;
+        border:none;border-radius:8px;padding:10px 20px;cursor:pointer;
+        box-shadow:0 4px 0 var(--amber-dim);white-space:nowrap;flex-shrink:0;
       ">Conectar con Microsoft 365</button>
     </div>
 
@@ -1106,10 +1106,13 @@ function encodeSharingUrl(url){
 
 function actualizarEstadoLogin(){
   const overlay = document.getElementById('loginBlockOverlay');
-  if(msAccount && overlay){
-    overlay.style.display = 'none';
-  } else if(overlay){
-    overlay.style.display = 'flex';
+  const btnGuardar = document.getElementById('btnGuardar');
+  if(msAccount){
+    if(overlay) overlay.style.display = 'none';
+    if(btnGuardar){ btnGuardar.disabled = false; btnGuardar.style.opacity = '1'; }
+  } else {
+    if(overlay) overlay.style.display = 'flex';
+    if(btnGuardar){ btnGuardar.disabled = true; btnGuardar.style.opacity = '0.4'; }
   }
 }
 
