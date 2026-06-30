@@ -582,7 +582,7 @@
       <div style="color:var(--text-dim);font-size:14px;max-width:320px;line-height:1.6;">
         Debes conectarte con tu cuenta de Microsoft 365 antes de poder registrar cortes.
       </div>
-      <button onclick="document.getElementById('btnMsAuth').click()" style="
+      <button onclick="iniciarLoginDesdeOverlay()" style="
         font-family:var(--font-display);font-size:20px;letter-spacing:1px;text-transform:uppercase;
         background:linear-gradient(180deg,#ffc85c,var(--amber));color:#1a1206;
         border:none;border-radius:10px;padding:16px 32px;cursor:pointer;
@@ -1113,8 +1113,26 @@ function actualizarEstadoLogin(){
   }
 }
 
+async function iniciarLoginDesdeOverlay(){
+  if(!msalInstance){
+    showToast('⚠ Configura primero el Client ID de Microsoft en el código');
+    return;
+  }
+  try{
+    const token = await getMsAccessToken(true);
+    if(token){
+      gsyncSetStatus(true, 'Conectado: ' + (msAccount?.username || ''));
+      showToast('✓ Conectado a Excel / OneDrive');
+      document.getElementById('btnRefreshHistorial').style.display = '';
+      actualizarEstadoLogin();
+      cargarHistorialExcel();
+    }
+  } catch(err){
+    showToast('⚠ No se pudo conectar con Microsoft');
+  }
+}
 
-  const dot = document.getElementById('gsyncDot');
+function gsyncSetStatus(connected, label){
   const lbl = document.getElementById('gsyncLabel');
   dot.classList.toggle('connected', connected);
   lbl.textContent = label;
