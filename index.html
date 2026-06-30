@@ -564,32 +564,7 @@
 </div>
 
 <div class="grid">
-  <div class="card" style="position:relative;">
-    <!-- Aviso de sesión requerida (no bloquea, solo informa) -->
-    <div id="loginBlockOverlay" style="
-      display:none;
-      background:rgba(200,16,46,0.08);
-      border:2px solid var(--amber);
-      border-radius:10px;
-      padding:14px 18px;
-      margin-bottom:16px;
-      display:flex;
-      align-items:center;
-      gap:14px;
-      flex-wrap:wrap;
-    ">
-      <span style="font-size:24px;">🔒</span>
-      <span style="color:var(--text);font-size:14px;flex:1;">
-        Debes conectarte con Microsoft 365 antes de registrar cortes.
-      </span>
-      <button onclick="iniciarLoginDesdeOverlay()" style="
-        font-family:var(--font-display);font-size:16px;letter-spacing:1px;text-transform:uppercase;
-        background:linear-gradient(180deg,#ffc85c,var(--amber));color:#1a1206;
-        border:none;border-radius:8px;padding:10px 20px;cursor:pointer;
-        box-shadow:0 4px 0 var(--amber-dim);white-space:nowrap;flex-shrink:0;
-      ">Conectar con Microsoft 365</button>
-    </div>
-
+  <div class="card">
     <div class="card-title">Nuevo corte <span class="tag">captura</span></div>
 
     <div class="form-grid">
@@ -1105,14 +1080,16 @@ function encodeSharingUrl(url){
 }
 
 function actualizarEstadoLogin(){
-  const overlay = document.getElementById('loginBlockOverlay');
   const btnGuardar = document.getElementById('btnGuardar');
+  if(!btnGuardar) return;
   if(msAccount){
-    if(overlay) overlay.style.display = 'none';
-    if(btnGuardar){ btnGuardar.disabled = false; btnGuardar.style.opacity = '1'; }
+    btnGuardar.disabled = false;
+    btnGuardar.style.opacity = '1';
+    btnGuardar.title = '';
   } else {
-    if(overlay) overlay.style.display = 'flex';
-    if(btnGuardar){ btnGuardar.disabled = true; btnGuardar.style.opacity = '0.4'; }
+    btnGuardar.disabled = true;
+    btnGuardar.style.opacity = '0.45';
+    btnGuardar.title = 'Conéctate con Microsoft 365 para registrar cortes';
   }
 }
 
