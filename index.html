@@ -564,7 +564,32 @@
 </div>
 
 <div class="grid">
-  <div class="card">
+  <div class="card" style="position:relative;">
+    <!-- Overlay de bloqueo cuando no hay sesión Microsoft -->
+    <div id="loginBlockOverlay" style="
+      position:absolute; inset:0; z-index:10;
+      background:rgba(22,24,27,0.88);
+      backdrop-filter:blur(4px);
+      border-radius:14px;
+      display:flex; flex-direction:column;
+      align-items:center; justify-content:center;
+      gap:16px; text-align:center; padding:32px;
+    ">
+      <div style="font-size:52px;">🔒</div>
+      <div style="font-family:var(--font-display);font-size:26px;letter-spacing:1px;color:var(--amber);text-transform:uppercase;">
+        Inicia sesión para capturar
+      </div>
+      <div style="color:var(--text-dim);font-size:14px;max-width:320px;line-height:1.6;">
+        Debes conectarte con tu cuenta de Microsoft 365 antes de poder registrar cortes.
+      </div>
+      <button onclick="document.getElementById('btnMsAuth').click()" style="
+        font-family:var(--font-display);font-size:20px;letter-spacing:1px;text-transform:uppercase;
+        background:linear-gradient(180deg,#ffc85c,var(--amber));color:#1a1206;
+        border:none;border-radius:10px;padding:16px 32px;cursor:pointer;
+        box-shadow:0 6px 0 var(--amber-dim);margin-top:8px;
+      ">Conectar con Microsoft 365</button>
+    </div>
+
     <div class="card-title">Nuevo corte <span class="tag">captura</span></div>
 
     <div class="form-grid">
@@ -625,7 +650,8 @@
 
     <div class="btn-row">
       <button class="btn-primary" id="btnGuardar">✂️ Registrar corte</button>
-      <button class="btn-secondary" id="btnLimpiar">Limpiar formulario</button>
+
+
     </div>
   </div>
 
@@ -1078,7 +1104,16 @@ function encodeSharingUrl(url){
   return 'u!' + b64url;
 }
 
-function gsyncSetStatus(connected, label){
+function actualizarEstadoLogin(){
+  const overlay = document.getElementById('loginBlockOverlay');
+  if(msAccount && overlay){
+    overlay.style.display = 'none';
+  } else if(overlay){
+    overlay.style.display = 'flex';
+  }
+}
+
+
   const dot = document.getElementById('gsyncDot');
   const lbl = document.getElementById('gsyncLabel');
   dot.classList.toggle('connected', connected);
@@ -1139,6 +1174,7 @@ document.getElementById('btnMsAuth').addEventListener('click', async ()=>{
       gsyncSetStatus(true, 'Conectado: ' + (msAccount?.username || ''));
       showToast('✓ Conectado a Excel / OneDrive');
       document.getElementById('btnRefreshHistorial').style.display = '';
+      actualizarEstadoLogin();
       cargarHistorialExcel();
     }
   } catch(err){
@@ -1239,6 +1275,7 @@ async function appendRowToExcel(registro){
     if(resp.status === 401){
       msAccount = null;
       gsyncSetStatus(false, 'Sesión expirada');
+      actualizarEstadoLogin();
       return {ok:false, reason:'token-expirado'};
     }
     if(!resp.ok){
@@ -1250,7 +1287,10 @@ async function appendRowToExcel(registro){
   }
 }
 
-window.addEventListener('load', initMsAuth);
+window.addEventListener('load', ()=>{
+  initMsAuth();
+  actualizarEstadoLogin();
+});
 
 function updateClock(){
   const now = new Date();
@@ -1295,16 +1335,14 @@ function actualizarJobQtyHint(){
 }
 document.getElementById('cantidad').addEventListener('input', actualizarJobQtyHint);
 
-function mostrarJobComplete(jobCode, totalLocal, totalHistorial, maxQty){
+function mostrarJobComplete(jobCode, maxQty, totalRMs){
   const overlay = document.getElementById('jobCompleteOverlay');
   document.getElementById('jobCompleteId').textContent = jobCode;
-  const totalGlobal = (totalHistorial !== null ? totalHistorial : 0) + totalLocal;
   document.getElementById('jobCompleteDetalles').innerHTML =
-    `Se han cortado <strong style="color:var(--green)">${totalGlobal.toLocaleString('es-MX')} pzas</strong> ` +
-    `de las <strong style="color:var(--amber)">${maxQty.toLocaleString('es-MX')} pzas</strong> requeridas.<br>` +
-    (totalHistorial !== null
-      ? `(${totalLocal.toLocaleString('es-MX')} en este turno + ${totalHistorial.toLocaleString('es-MX')} en turnos anteriores)`
-      : `(${totalLocal.toLocaleString('es-MX')} en este turno)`);
+    `Todos los <strong style="color:var(--amber)">${totalRMs} RM${totalRMs !== 1 ? 's' : ''}</strong> de esta parte ` +
+    `han alcanzado la cantidad requerida de ` +
+    `<strong style="color:var(--green)">${maxQty.toLocaleString('es-MX')} pzas</strong>.<br><br>` +
+    `El Job está <strong style="color:var(--green)">100% completo</strong> en corte.`;
   overlay.classList.add('show');
 }
 
@@ -1312,24 +1350,48 @@ function cerrarJobComplete(){
   document.getElementById('jobCompleteOverlay').classList.remove('show');
 }
 
-function verificarJobCompletado(jobCode, cantidad){
+function verificarJobCompletado(jobCode){
   if(!jobCode) return;
   const entrada = openJobs.find(j => j.job === jobCode);
   if(!entrada) return;
+
   const maxQty = entrada.qty;
+  const part = entrada.part;
 
-  const totalLocal = registros
-    .filter(r => r.job === jobCode)
-    .reduce((s, r) => s + r.cantidad, 0);
+  // Obtener todos los RMs cortables de esta parte
+  const opciones = materialesPorParte[part];
+  if(!opciones || opciones.length === 0) return;
 
-  const totalHistorial = historialCargado
-    ? historialExcel.filter(r => String(r.job).trim() === jobCode).reduce((s, r) => s + r.cantidad, 0)
-    : null;
+  let rmsPendientes = [];
+  let rmsCompletos = [];
 
-  const totalGlobal = totalLocal + (totalHistorial !== null ? totalHistorial : 0);
+  for(const o of opciones){
+    const rmCode = o.code;
 
-  if(totalGlobal >= maxQty){
-    mostrarJobComplete(jobCode, totalLocal, totalHistorial, maxQty);
+    // Cantidad cortada de este RM para este Job (turno actual)
+    const localCut = registros
+      .filter(r => r.calibre === rmCode && r.job === jobCode)
+      .reduce((s, r) => s + r.cantidad, 0);
+
+    // Cantidad cortada de este RM para este Job (historial Excel)
+    const histCut = historialCargado
+      ? historialExcel
+          .filter(r => String(r.calibre).trim() === rmCode && String(r.job).trim() === jobCode)
+          .reduce((s, r) => s + r.cantidad, 0)
+      : 0;
+
+    const totalCut = localCut + histCut;
+
+    if(totalCut >= maxQty){
+      rmsCompletos.push({code: rmCode, total: totalCut});
+    } else {
+      rmsPendientes.push({code: rmCode, total: totalCut, pendiente: maxQty - totalCut});
+    }
+  }
+
+  if(rmsPendientes.length === 0){
+    // Todos los RMs completos → mostrar aviso de Job completado
+    mostrarJobComplete(jobCode, maxQty, opciones.length);
   }
 }
 
@@ -1380,7 +1442,7 @@ document.getElementById('btnGuardar').addEventListener('click', async ()=>{
   registros.push(registro);
   renderTabla();
   actualizarJobQtyHint();
-  verificarJobCompletado(data.job, data.cantidad);
+  verificarJobCompletado(data.job);
   limpiarFormulario();
 
   showToast('✓ Corte registrado · sincronizando...');
@@ -1398,7 +1460,7 @@ document.getElementById('btnGuardar').addEventListener('click', async ()=>{
   }
 });
 
-document.getElementById('btnLimpiar').addEventListener('click', limpiarFormularioCompleto);
+
 
 function resetDropdown(name, placeholder){
   document.getElementById(name).value = '';
