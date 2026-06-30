@@ -1342,12 +1342,21 @@ function getJobQtyInfo(jobCode, rmCode){
   if(!jobCode) return null;
   const entry = openJobs.find(j=>j.job === jobCode);
   if(!entry) return null;
-  // Si se pasa un RM específico, calcular solo los cortes de ese RM para ese Job
-  // Si no, calcular el total del Job (para el hint general)
-  const usado = rmCode
+
+  // Conteo local (turno actual) filtrado por Job+RM
+  const localUsado = rmCode
     ? registros.filter(r=>r.job === jobCode && r.calibre === rmCode).reduce((s,r)=>s+r.cantidad,0)
     : registros.filter(r=>r.job === jobCode).reduce((s,r)=>s+r.cantidad,0);
-  return {max: entry.qty, usado, restante: entry.qty - usado};
+
+  // Conteo histórico del Excel (otros turnos/operadores) filtrado por Job+RM
+  const histUsado = historialCargado
+    ? (rmCode
+        ? historialExcel.filter(r=>String(r.job||'').trim()===jobCode && String(r.calibre||'').trim()===rmCode).reduce((s,r)=>s+r.cantidad,0)
+        : historialExcel.filter(r=>String(r.job||'').trim()===jobCode).reduce((s,r)=>s+r.cantidad,0))
+    : 0;
+
+  const usado = localUsado + histUsado;
+  return {max: entry.qty, usado, restante: Math.max(0, entry.qty - usado)};
 }
 
 function actualizarJobQtyHint(){
@@ -1355,7 +1364,6 @@ function actualizarJobQtyHint(){
   const job = document.getElementById('job').value.split('|')[0].trim();
   const rm = document.getElementById('calibre').value;
   const cantidadInput = document.getElementById('cantidad').value;
-  // Si hay RM seleccionado, mostrar el restante específico para ese RM+Job
   const info = getJobQtyInfo(job, rm || null);
   if(!info){
     hint.textContent = '';
@@ -1364,8 +1372,9 @@ function actualizarJobQtyHint(){
   }
   const excede = cantidadInput && Number(cantidadInput) > info.restante;
   const rmLabel = rm ? ` · RM ${rm}` : '';
-  hint.textContent = `Job ${job}${rmLabel}: restante ${info.restante.toLocaleString('es-MX')} de ${info.max.toLocaleString('es-MX')} pzas`;
-  hint.classList.toggle('warn', excede);
+  const histLabel = historialCargado ? ` (${info.usado.toLocaleString('es-MX')} cortadas en total)` : '';
+  hint.textContent = `Job ${job}${rmLabel}: restante ${info.restante.toLocaleString('es-MX')} de ${info.max.toLocaleString('es-MX')} pzas${histLabel}`;
+  hint.classList.toggle('warn', excede || info.restante === 0);
 }
 document.getElementById('cantidad').addEventListener('input', actualizarJobQtyHint);
 
